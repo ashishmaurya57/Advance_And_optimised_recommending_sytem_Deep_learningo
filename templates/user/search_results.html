@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1>Search Results</h1>
+
+    {% if query %}
+        <h2>Results for "{{ query }}"</h2>
+        {% if results %}
+            <ul class="list-group">
+                {% for product in results %}
+                    <li class="list-group-item">
+                        <h3>{{ product.name }}</h3>
+                        <p>{{ product.pdes|truncatewords:20 }}</p>
+                        <p><strong>Price:</strong> {{ product.disprice }}</p>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-danger">No results found for "{{ query }}".</p>
+        {% endif %}
+    {% else %}
+        <p>Enter a search term to find products.</p>
+    {% endif %}
+</div>
+{% endblock %}
