@@ -43,7 +43,8 @@ class SearchLog(models.Model):
 class login(models.Model):
     email=models.CharField(max_length=30,primary_key=True)
     passwd=models.CharField(max_length=20)
-
+    
+from .utils import compress_pdf
 class product(models.Model):
     name=models.CharField(max_length=150)
     ppic=models.ImageField(upload_to='static/products',default="")
@@ -55,6 +56,16 @@ class product(models.Model):
     pdes=models.TextField(max_length=5000)
     category=models.ForeignKey(category,on_delete=models.CASCADE)
     pdate=models.DateField()
+    pdf = models.FileField(upload_to='static/pdfs/', null=True, blank=True, help_text="Upload a PDF file for the product")
+
+    def save(self, *args, **kwargs):
+        # Compress the PDF before saving
+        if self.pdf:
+            self.pdf = compress_pdf(self.pdf)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
 
 class order(models.Model):
     pid=models.IntegerField()
