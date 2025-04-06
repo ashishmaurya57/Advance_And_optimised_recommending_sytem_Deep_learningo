@@ -13,19 +13,43 @@
                 <div class="card mb-3 bg-light">
                     <div class="row g-0">
                         <div class="col-md-4">
-                            <img src="/{{ product.ppic }}" class="img-fluid rounded-start w-100" alt="..." style="height:300px;width:180px;padding:5px;">
+                            <img src="/{{ product.ppic }}" class="img-fluid rounded-start w-100" alt="{{ product.name }}" style="height:300px;width:180px;padding:5px;object-fit:contain;">
                         </div>
                         <div class="col-md-8">
                             <div class="card-body">
-                                <p class="fs-6"><b>Title & Category: </b>{{ product.name }} ({{ product.category }})</p>
+                                <h4 class="card-title">{{ product.name }}</h4>
+                                <p class="fs-6"><b>Category: </b>{{ product.category.cname }}</p>
                                 <p class="fs-6"><b>Hardcover: </b> {{ product.hardcover }}</p>
                                 <p class="fs-6"><b>Publisher: </b> {{ product.publisher }}</p>
+                                <p class="fs-6"><b>Language: </b> {{ product.language }}</p>
+                                <div class="my-2">
+                                    <span class="btn btn-outline-danger">
+                                        <i class="fa fa-inr"></i> <s>{{ product.tprice }}/-</s>
+                                    </span>
+                                    <span class="btn btn-outline-success">
+                                        <i class="fa fa-inr"></i> {{ product.disprice }}/-
+                                    </span>
+                                </div>
+                                <div class="my-2">
+                                    <span class="btn {% if user_has_liked %}btn-success{% else %}btn-outline-success{% endif %}" 
+                                          onclick="handleInteraction('like', {{ product.id }})">
+                                        <i class="fa fa-thumbs-up"></i> {{ product.likes }}
+                                    </span>
+                                    <span class="btn {% if user_has_disliked %}btn-danger{% else %}btn-outline-danger{% endif %}" 
+                                          onclick="handleInteraction('dislike', {{ product.id }})">
+                                        <i class="fa fa-thumbs-down"></i> {{ product.dislikes }}
+                                    </span>
+                                </div>
                                 <p class="card-text"><b>Description: </b> {{ product.pdes }}</p>
-                                <i class="btn btn-outline-danger"><i class="fa fa-inr"></i> <s>{{ product.tprice }}/-</s></i>
-                                <i class="btn btn-outline-success"><i class="fa fa-inr"></i> {{ product.disprice }}/-</i>
-                                <p class="card-text"><small class="text-muted">Posted Date : {{ product.pdate }}</small></p>
-                                <a href="/user1/process?pid={{ product.id }}&bn=order" class="btn rounded but">Buy Now</a>
-                                <a href="/user1/process?pid={{ product.id }}&bn=cart" target="_blank" class="btn rounded but"><i class="fa fa-shopping-cart"></i></a>
+                                <p class="card-text">
+                                    <small class="text-muted">Published: {{ product.pdate }}</small>
+                                </p>
+                                <div class="mt-3">
+                                    <a href="/user1/process?pid={{ product.id }}&bn=order" class="btn but">Buy Now</a>
+                                    <a href="/user1/process?pid={{ product.id }}&bn=cart" class="btn but">
+                                        <i class="fa fa-shopping-cart"></i> Add to Cart
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -37,48 +61,159 @@
             </div>
         </div>
 
+        <!-- Similar Books Section -->
+        {% if similar_books %}
+        <div class="row mt-4">
+            <div class="col-sm-12">
+                <h4>You Might Also Like</h4>
+                <div class="row">
+                    {% for book in similar_books %}
+                    <div class="col-md-3 mb-3">
+                        <div class="card h-100">
+                            <img src="/{{ book.ppic }}" class="card-img-top" alt="{{ book.name }}" style="height:150px;object-fit:contain;">
+                            <div class="card-body">
+                                <h6 class="card-title">{{ book.name|truncatechars:25 }}</h6>
+                                <p class="text-muted small">{{ book.category.cname }}</p>
+                                <p class="text-success small">
+                                    <i class="fa fa-inr"></i> {{ book.disprice }}
+                                    <small class="text-danger"><del>{{ book.tprice }}</del></small>
+                                </p>
+                                <a href="/user1/viewdetails?msg={{ book.id }}" class="btn btn-sm btn-primary">View</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Reviews Section -->
         <div class="row mt-4">
             <div class="col-sm-12">
-                <h3>Reviews</h3>
-                {% for review in reviews %}
-                <div class="review">
-                    <p><b>{{ review.user.name }}</b> rated <b>{{ review.rating }}/5</b></p>
-                    <p>{{ review.comment }}</p>
-                    <p><small>Reviewed on {{ review.created_at }}</small></p>
+                <h4>Customer Reviews</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                {% if reviews %}
+                                {% for review in reviews %}
+                                <div class="review mb-3 border-bottom pb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>{{ review.user.name }}</strong>
+                                        <div>
+                                            {% for i in "12345" %}
+                                                {% if forloop.counter <= review.rating %}
+                                                    <i class="fas fa-star text-warning"></i>
+                                                {% else %}
+                                                    <i class="far fa-star text-warning"></i>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <p class="mb-1"><small>{{ review.created_at|date:"F d, Y" }}</small></p>
+                                    <p class="mt-2">{{ review.comment }}</p>
+                                </div>
+                                {% endfor %}
+                                {% else %}
+                                <p>No reviews yet. Be the first to review this product!</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        {% if request.session.userid %}
+                        <div class="card">
+                            <div class="card-body">
+                                <h5>Write a Review</h5>
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <div class="form-group mb-3">
+                                        <label>Rating</label>
+                                        <div class="rating">
+                                            {% for i in "54321" %}
+                                                <input type="radio" id="star{{ i }}" name="rating" value="{{ i }}" {% if forloop.first %}checked{% endif %}>
+                                                <label for="star{{ i }}">★</label>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <textarea name="comment" class="form-control" rows="4" placeholder="Share your thoughts about this product..." required></textarea>
+                                    </div>
+                                    <button type="submit" class="btn but">Submit Review</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <a href="/user1/signin/" class="alert-link">Sign in</a> to write a review.
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
-                <hr>
-                {% empty %}
-                <p>No reviews yet. Be the first to review this product!</p>
-                {% endfor %}
             </div>
         </div>
-
-        <!-- Add Review Section -->
-        {% if request.session.userid %}
-        <div class="row mt-4">
-            <div class="col-sm-12">
-                <h3>Leave a Review</h3>
-                <form method="post">
-                    {% csrf_token %}
-                    <label for="rating">Rating:</label>
-                    <select name="rating" id="rating" class="form-control" required>
-                        <option value="1">1 - Poor</option>
-                        <option value="2">2 - Fair</option>
-                        <option value="3">3 - Good</option>
-                        <option value="4">4 - Very Good</option>
-                        <option value="5">5 - Excellent</option>
-                    </select>
-                    <label for="comment">Comment:</label>
-                    <textarea name="comment" id="comment" class="form-control" rows="3" placeholder="Write your review..."></textarea>
-                    <button type="submit" class="btn btn-primary mt-2">Submit Review</button>
-                </form>
-            </div>
-        </div>
-        {% else %}
-        <p class="text-center mt-4"><a href="/user1/signin/">Sign in</a> to leave a review.</p>
-        {% endif %}
     </div>
     <div class="col-sm-2"></div>
 </div>
+
+<script>
+function handleInteraction(action, productId) {
+    if (!"{{ request.session.userid }}") {
+        window.location.href = "/user1/signin/";
+        return;
+    }
+    
+    const url = `/user1/product/${productId}/${action}/`;
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload the page to show updated likes/dislikes
+            window.location.reload();
+        }
+    });
+}
+</script>
+
+<style>
+.rating {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+}
+.rating > input {
+    display: none;
+}
+.rating > label {
+    position: relative;
+    width: 1.1em;
+    font-size: 2rem;
+    color: #FFD700;
+    cursor: pointer;
+}
+.rating > label:hover,
+.rating > label:hover ~ label,
+.rating > input:checked ~ label {
+    color: #ffc000;
+}
+.review {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 5px;
+}
+.card {
+    transition: transform 0.3s;
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+</style>
 {% endblock %}

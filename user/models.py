@@ -46,17 +46,19 @@ class login(models.Model):
     
 from .utils import compress_pdf
 class product(models.Model):
-    name=models.CharField(max_length=150)
-    ppic=models.ImageField(upload_to='static/products',default="")
-    language=models.CharField(max_length=40)
-    hardcover=models.CharField(max_length=50)
-    publisher=models.CharField(max_length=100)
-    tprice=models.FloatField()
-    disprice=models.FloatField()
-    pdes=models.TextField(max_length=5000)
-    category=models.ForeignKey(category,on_delete=models.CASCADE)
-    pdate=models.DateField()
+    name = models.CharField(max_length=150)
+    ppic = models.ImageField(upload_to='static/products', default="")
+    language = models.CharField(max_length=40)
+    hardcover = models.CharField(max_length=50)
+    publisher = models.CharField(max_length=100)
+    tprice = models.FloatField()
+    disprice = models.FloatField()
+    pdes = models.TextField(max_length=5000)
+    category = models.ForeignKey(category, on_delete=models.CASCADE)
+    pdate = models.DateField()
     pdf = models.FileField(upload_to='static/pdfs/', null=True, blank=True, help_text="Upload a PDF file for the product")
+    likes = models.IntegerField(default=0)  # Total likes
+    dislikes = models.IntegerField(default=0)  # Total dislikes
 
     def save(self, *args, **kwargs):
         # Compress the PDF before saving
@@ -66,7 +68,6 @@ class product(models.Model):
 
     def __str__(self):
         return self.name
-
 class order(models.Model):
     pid=models.IntegerField()
     userid=models.EmailField(max_length=100)
@@ -89,3 +90,14 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.user.name} rated {self.product.name} ({self.rating}/5)"
+
+class ProductInteraction(models.Model):
+    user = models.ForeignKey(profile, on_delete=models.CASCADE, related_name='interactions')
+    product = models.ForeignKey(product, on_delete=models.CASCADE, related_name='interactions')
+    liked = models.BooleanField(default=False)  # True if liked, False if disliked
+    disliked = models.BooleanField(default=False)  # True if disliked, False if liked
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        action = "liked" if self.liked else "disliked"
+        return f"{self.user.name} {action} {self.product.name}"

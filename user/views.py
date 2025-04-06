@@ -4,14 +4,9 @@ from django.http import HttpResponse
 import datetime
 from django.db import connection
 import numpy as np
+from django.shortcuts import redirect, get_object_or_404
+from .models import ProductInteraction, product
 
-# from .recommendation.data_preparation import prepare_data
-# from .recommendation.sentiment_analysis import analyze_sentiment
-# from .recommendation.embedding import generate_user_embeddings, generate_product_embeddings
-# from .recommendation.recommendation_model import train_recommendation_model
-
-import torch
-# Create your views here.
 
 
 def about(req):
@@ -319,28 +314,145 @@ def search_view(request):
 
         # Render the search results page
         return render(request, 'user/search_results.html', {'query': query, 'results': results})
-# def recommend_products(request):
-#     user_id = request.session.get('userid')
-#     if not user_id:
-#         return HttpResponse("<script>alert('Please log in to see recommendations.');window.location.href='/user1/signin/';</script>")
 
-#     # Prepare data
-#     user_data, product_data, review_data, search_data = prepare_data()
-#     print("Data prepared successfully.")
+def handle_like_dislike(user, product_id, action):
+    try:
+        product_instance = product.objects.get(id=product_id)
+        interaction, created = ProductInteraction.objects.get_or_create(
+            user=user, 
+            product=product_instance
+        )
 
-#     # Generate embeddings
-#     user_embeddings = generate_user_embeddings(user_data, search_data)
-#     product_embeddings = generate_product_embeddings(product_data)
-#     print("Embeddings generated successfully.")
+        # If clicking the same button again, undo the action
+        if action == "like" and interaction.liked:
+            interaction.liked = False
+            product_instance.likes -= 1
+        elif action == "like":
+            interaction.liked = True
+            interaction.disliked = False
+            product_instance.likes += 1
+            if not created and interaction.disliked:
+                product_instance.dislikes -= 1
+        elif action == "dislike" and interaction.disliked:
+            interaction.disliked = False
+            product_instance.dislikes -= 1
+        elif action == "dislike":
+            interaction.disliked = True
+            interaction.liked = False
+            product_instance.dislikes += 1
+            if not created and interaction.liked:
+                product_instance.likes -= 1
 
-#     # Train recommendation model
-#     model = train_recommendation_model(user_embeddings, product_embeddings, review_data)
-#     print("Recommendation model trained successfully.")
+        interaction.save()
+        product_instance.save()
+        
+    except product.DoesNotExist:
+        raise Http404("Product does not exist")   
 
-#     # Get recommendations for the current user
-#     user_emb = user_embeddings[user_id]
-#     scores = model(torch.tensor([np.concatenate([user_emb, product_emb]) for product_emb in product_embeddings]))
-#     recommended_products = product_data.iloc[np.argsort(scores.detach().numpy().flatten())[::-1][:10]]
-#     print("Recommended products:", recommended_products)
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse, HttpResponseRedirect
+from django.urls import reverse
 
-#     return render(request, 'user/recommendations.html', {'products': recommended_products})
+def like_product(request, product_id):
+    # Check if user is logged in (using your session system)
+    if not request.session.get('userid'):
+        return HttpResponseRedirect(reverse('signin'))
+    
+    try:
+        # Get the user's profile using session email
+        user_profile = get_object_or_404(profile, email=request.session.get('userid'))
+        product_instance = get_object_or_404(product, id=product_id)
+        
+        # Get or create interaction
+        interaction, created = ProductInteraction.objects.get_or_create(
+            user=user_profile,
+            product=product_instance
+        )
+        
+        # Toggle like state
+        if interaction.liked:
+            interaction.liked = False
+            product_instance.likes -= 1
+        else:
+            interaction.liked = True
+            product_instance.likes += 1
+            if interaction.disliked:  # Remove dislike if exists
+                interaction.disliked = False
+                product_instance.dislikes -= 1
+        
+        # Save changes
+        interaction.save()
+        product_instance.save()
+        
+        # Redirect back to product page
+        return HttpResponseRedirect(reverse('viewdetails') + f'?msg={product_id}')
+        
+    except Exception as e:
+        # Handle any unexpected errors
+        return HttpResponse(
+            f"<script>alert('Error: {str(e)}');window.location.href='/user1/viewdetails?msg={product_id}'</script>"
+        )
+    
+def dislike_product(request, product_id):
+    if not request.session.get('userid'):
+        return HttpResponseRedirect(reverse('signin'))
+    
+    try:
+        user_profile = get_object_or_404(profile, email=request.session.get('userid'))
+        product_instance = get_object_or_404(product, id=product_id)
+        
+        interaction, created = ProductInteraction.objects.get_or_create(
+            user=user_profile,
+            product=product_instance
+        )
+        
+        if interaction.disliked:
+            interaction.disliked = False
+            product_instance.dislikes -= 1
+        else:
+            interaction.disliked = True
+            product_instance.dislikes += 1
+            if interaction.liked:  # Remove like if exists
+                interaction.liked = False
+                product_instance.likes -= 1
+        
+        interaction.save()
+        product_instance.save()
+        
+        return HttpResponseRedirect(reverse('viewdetails') + f'?msg={product_id}')
+        
+    except Exception as e:
+        return HttpResponse(
+            f"<script>alert('Error: {str(e)}');window.location.href='/user1/viewdetails?msg={product_id}'</script>"
+        )
+
+
+from django.db import models
+from django.contrib.postgres.fields import ArrayField  # If using PostgreSQL
+
+class UserBookInteraction(models.Model):
+    """Tracks all user interactions with books"""
+    user = models.ForeignKey(profile, on_delete=models.CASCADE)
+    book = models.ForeignKey(product, on_delete=models.CASCADE)
+    interaction_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('view', 'View'),
+            ('purchase', 'Purchase'),
+            ('like', 'Like'),
+            ('dislike', 'Dislike'),
+            ('review', 'Review'),
+            ('search', 'Search')
+        ]
+    )
+    weight = models.FloatField(default=1.0)  # Strength of interaction
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'book']),
+            models.Index(fields=['interaction_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.name} {self.interaction_type} {self.book.name}"
